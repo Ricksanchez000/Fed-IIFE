@@ -38,7 +38,8 @@ import lightgbm as lgb
 from time import sleep
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 runs = [
-("openml586","lasso")
+#("openml586","lasso")
+("openml586","RF")
 ]
 output_dir = "outdir/iife_outputs/"
 save_Xs=True

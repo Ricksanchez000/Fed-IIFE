@@ -645,43 +645,43 @@ def val_score(clf,scoring,X_train,y_train,vartype_list, normalize=False, ohe=Fal
 
 def unary(clf, X_train, y_train, X_test, scoring, vartype_list, spot=None, seed=0):
 	#now we test unary transformations of the new feature
-    #TODO: Need to make this into a function form to have less repeat code...
-    if spot:
-    	m=spot
-    else:
-    	m = X_train.shape[1]-1
-    list_X_train_unary = []
-    list_X_test_unary = []
-    #store list of scores on validation
-    list_scores_unary = []
-    list_type_unary=[]
-    #now add unary transformations
-    #try each unary transformation on each new feature and keep the one with best cv score
-    X_train_temp = X_train.copy()
-    X_test_temp = X_test.copy()
-    #train and evaluate performance
-    #clf = RandomForestClassifier(n_estimators = 10, random_state=0)
-    normalize=True
-    ohe=True
-    valscore = val_score(clf,scoring,X_train_temp,y_train,vartype_list,normalize=normalize, ohe=ohe, seed=seed)
-    list_scores_unary.append(valscore)
-    list_X_train_unary.append(X_train_temp.copy())
-    list_X_test_unary.append(X_test_temp.copy())
-    list_type_unary.append("None")
-    
+	#TODO: Need to make this into a function form to have less repeat code...
+	if spot:
+		m=spot
+	else:
+		m = X_train.shape[1]-1
+	list_X_train_unary = []
+	list_X_test_unary = []
+	#store list of scores on validation
+	list_scores_unary = []
+	list_type_unary=[]
+	#now add unary transformations
+	#try each unary transformation on each new feature and keep the one with best cv score
+	X_train_temp = X_train.copy()
+	X_test_temp = X_test.copy()
+	#train and evaluate performance
+	#clf = RandomForestClassifier(n_estimators = 10, random_state=0)
+	normalize=True
+	ohe=True
+	valscore = val_score(clf,scoring,X_train_temp,y_train,vartype_list,normalize=normalize, ohe=ohe, seed=seed)
+	list_scores_unary.append(valscore)
+	list_X_train_unary.append(X_train_temp.copy())
+	list_X_test_unary.append(X_test_temp.copy())
+	list_type_unary.append("None")
 
-    X_train_temp = X_train.copy()
-    X_test_temp = X_test.copy()
-    X_train_temp[:,m] = np.multiply(X_train_temp[:,m], X_train_temp[:,m])
-    X_test_temp[:,m] = np.multiply(X_test_temp[:,m], X_test_temp[:,m])
-    #train and evaluate performance
-    #clf = RandomForestClassifier(n_estimators = 10, random_state=0)
 
-    valscore = val_score(clf,scoring,X_train_temp,y_train,vartype_list,normalize=normalize, ohe=ohe, seed=seed)
-    list_scores_unary.append(valscore)
-    list_X_train_unary.append(X_train_temp.copy())
-    list_X_test_unary.append(X_test_temp.copy())
-    list_type_unary.append("Square")
+	X_train_temp = X_train.copy()
+	X_test_temp = X_test.copy()
+	X_train_temp[:,m] = np.multiply(X_train_temp[:,m], X_train_temp[:,m])
+	X_test_temp[:,m] = np.multiply(X_test_temp[:,m], X_test_temp[:,m])
+	#train and evaluate performance
+	#clf = RandomForestClassifier(n_estimators = 10, random_state=0)
+
+	valscore = val_score(clf,scoring,X_train_temp,y_train,vartype_list,normalize=normalize, ohe=ohe, seed=seed)
+	list_scores_unary.append(valscore)
+	list_X_train_unary.append(X_train_temp.copy())
+	list_X_test_unary.append(X_test_temp.copy())
+	list_type_unary.append("Square")
 
     # if (np.sum(np.isclose(X_train[:,m], np.zeros(X_train.shape[0]))) == 0
     #     and np.sum(np.isclose(X_test[:,m], np.zeros(X_test.shape[0]))) == 0
@@ -699,52 +699,52 @@ def unary(clf, X_train, y_train, X_test, scoring, vartype_list, spot=None, seed=
     #     list_type_unary.append("Reciprocal")
 
 
-    X_train_temp = X_train.copy()
-    X_test_temp = X_test.copy()
-    X_train_temp[:,m] = np.abs(X_train_temp[:,m])
-    X_test_temp[:,m] = np.abs(X_test_temp[:,m])
-    #train and evaluate performance
-    #clf = RandomForestClassifier(n_estimators = 10, random_state=0)
+	X_train_temp = X_train.copy()
+	X_test_temp = X_test.copy()
+	X_train_temp[:,m] = np.abs(X_train_temp[:,m])
+	X_test_temp[:,m] = np.abs(X_test_temp[:,m])
+	#train and evaluate performance
+	#clf = RandomForestClassifier(n_estimators = 10, random_state=0)
 
-    valscore = val_score(clf,scoring,X_train_temp,y_train,vartype_list,normalize=normalize, ohe=ohe, seed=seed)
-    list_scores_unary.append(valscore)
-    list_X_train_unary.append(X_train_temp.copy())
-    list_X_test_unary.append(X_test_temp.copy())
-    list_type_unary.append("Abs")  
-
-
-    X_train_temp = X_train.copy()
-    X_test_temp = X_test.copy()
-    X_train_temp[:,m] = np.sqrt(np.abs(X_train_temp[:,m]))
-    X_test_temp[:,m] = np.sqrt(np.abs(X_test_temp[:,m]))
-    #train and evaluate performance
-    #clf = RandomForestClassifier(n_estimators = 10, random_state=0)
-
-    valscore = val_score(clf,scoring,X_train_temp,y_train,vartype_list,normalize=normalize, ohe=ohe, seed=seed)
-    list_scores_unary.append(valscore)
-    list_X_train_unary.append(X_train_temp.copy())
-    list_X_test_unary.append(X_test_temp.copy())
-    list_type_unary.append("Sqrt Abs") 
+	valscore = val_score(clf,scoring,X_train_temp,y_train,vartype_list,normalize=normalize, ohe=ohe, seed=seed)
+	list_scores_unary.append(valscore)
+	list_X_train_unary.append(X_train_temp.copy())
+	list_X_test_unary.append(X_test_temp.copy())
+	list_type_unary.append("Abs")  
 
 
-    X_train_temp = X_train.copy()
-    X_test_temp = X_test.copy()
-    X_train_temp[:,m] = 1/(1+np.exp(-X_train_temp[:,m]))
-    X_test_temp[:,m] = 1/(1+np.exp(-X_test_temp[:,m]))
-    #train and evaluate performance
-    #clf = RandomForestClassifier(n_estimators = 10, random_state=0)
+	X_train_temp = X_train.copy()
+	X_test_temp = X_test.copy()
+	X_train_temp[:,m] = np.sqrt(np.abs(X_train_temp[:,m]))
+	X_test_temp[:,m] = np.sqrt(np.abs(X_test_temp[:,m]))
+	#train and evaluate performance
+	#clf = RandomForestClassifier(n_estimators = 10, random_state=0)
 
-    valscore = val_score(clf,scoring,X_train_temp,y_train,vartype_list,normalize=normalize, ohe=ohe, seed=seed)
-    list_scores_unary.append(valscore)
-    list_X_train_unary.append(X_train_temp.copy())
-    list_X_test_unary.append(X_test_temp.copy())
-    list_type_unary.append("sigmoid")        
+	valscore = val_score(clf,scoring,X_train_temp,y_train,vartype_list,normalize=normalize, ohe=ohe, seed=seed)
+	list_scores_unary.append(valscore)
+	list_X_train_unary.append(X_train_temp.copy())
+	list_X_test_unary.append(X_test_temp.copy())
+	list_type_unary.append("Sqrt Abs") 
 
-    #find the best addition
-    top_valscore_unary = np.argmax(np.array(list_scores_unary))
 
-    X_train = list_X_train_unary[top_valscore_unary]
-    X_test = list_X_test_unary[top_valscore_unary]
-    return X_train, X_test
+	X_train_temp = X_train.copy()
+	X_test_temp = X_test.copy()
+	X_train_temp[:,m] = 1/(1+np.exp(-X_train_temp[:,m]))
+	X_test_temp[:,m] = 1/(1+np.exp(-X_test_temp[:,m]))
+	#train and evaluate performance
+	#clf = RandomForestClassifier(n_estimators = 10, random_state=0)
+
+	valscore = val_score(clf,scoring,X_train_temp,y_train,vartype_list,normalize=normalize, ohe=ohe, seed=seed)
+	list_scores_unary.append(valscore)
+	list_X_train_unary.append(X_train_temp.copy())
+	list_X_test_unary.append(X_test_temp.copy())
+	list_type_unary.append("sigmoid")        
+
+	#find the best addition
+	top_valscore_unary = np.argmax(np.array(list_scores_unary))
+
+	X_train = list_X_train_unary[top_valscore_unary]
+	X_test = list_X_test_unary[top_valscore_unary]
+	return X_train, X_test
 
 
