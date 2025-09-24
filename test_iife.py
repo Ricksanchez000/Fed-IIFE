@@ -39,7 +39,7 @@ from time import sleep
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 runs = [
 #("openml586","lasso")
-("openml586","RF")
+("openml586","RFR")
 ]
 output_dir = "outdir/iife_outputs/"
 save_Xs=True
