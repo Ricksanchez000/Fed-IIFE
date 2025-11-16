@@ -282,7 +282,7 @@ def fed_ii(
 
     # 各 client 本地计算 τ_ij^c
     local_stats = [
-        compute_local_tau(X_c, y_c, pairs, task_type='cls')
+        compute_local_tau(X_c, y_c, pairs, task_type=task_type)
         for (X_c, y_c) in clients_data
     ]
 
