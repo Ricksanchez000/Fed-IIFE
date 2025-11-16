@@ -200,36 +200,28 @@ def fed_eval_task(
 
 Pair = Tuple[int, int]
 def interaction_mi(fi, fj, y, n_neighbors=3, random_state=0):
-    """
-    计算交互信息: I(fi; fj; y) = I(fi,fj; y) - I(fi; y) - I(fj; y)
-    """
-    # I(fi,fj; y)
     X_pair = np.column_stack([fi, fj])
-    I_pair_y = mutual_info_classif(
+    mi_pair = mutual_info_classif(
         X_pair, y,
         discrete_features="auto",
         n_neighbors=n_neighbors,
         random_state=random_state
-    )[0]
-    
-    # I(fi; y)
+    )
+    I_pair_y = float(mi_pair.sum())  # I(fi;y) + I(fj;y)，近似"联合相关度"
     I_fi_y = mutual_info_classif(
         fi.reshape(-1, 1), y,
         discrete_features="auto",
         n_neighbors=n_neighbors,
         random_state=random_state
     )[0]
-    
-    # I(fj; y)
     I_fj_y = mutual_info_classif(
         fj.reshape(-1, 1), y,
         discrete_features="auto",
         n_neighbors=n_neighbors,
         random_state=random_state
     )[0]
-    
-    # 交互信息
     return float(I_pair_y - I_fi_y - I_fj_y)
+
 
 
 def compute_local_tau(
