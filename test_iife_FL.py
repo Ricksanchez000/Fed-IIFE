@@ -64,7 +64,7 @@ def _prep_inputs_for_model(model, X_train, X_test, vartype_list):
         return X_train, X_test
 
 
-### NEW: 统一创建/更新模型
+### NEW: 统一创建/更新模型/ 更新个JB？我又不更新预测模型。
 def _make_clf(model, hyperparams):
     import lightgbm as lgb
     from sklearn.linear_model import LogisticRegression, Lasso
