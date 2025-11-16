@@ -1,5 +1,6 @@
 #test_iife_FL.py
-
+import warnings
+warnings.filterwarnings('ignore')
 import numpy as np
 from itertools import combinations
 from dataclasses import dataclass
@@ -475,22 +476,28 @@ class FedIIFE:
         return self
 
 
-# ----------- 一个 demo：造数据 + 跑一遍 -----------
+###################################################
+# 6. 读取 pima_indian 数据，并跑联邦 IIFE
+###################################################
+def load_pima_clients(data_dir: str, num_clients: int = 5):
+    """
+    从 data/ 目录读取 pima_indian_1.hdf ... pima_indian_5.hdf，
+    每个文件一个 client，最后一列为标签。
+    """
+    clients = []
+    for cid in range(1, num_clients + 1):
+        path = os.path.join(data_dir, f"pima_indian_{cid}.hdf")
+        df = pd.read_hdf(path).reset_index(drop=True)
+        X = df.iloc[:, :-1].values
+        y = df.iloc[:, -1].values
+        clients.append((X, y))
+    weights = np.array([len(y) for (_, y) in clients], dtype=float)
+    return clients, weights
 
-# ---------- 一个小 demo：分类任务用 F1 ----------
-def demo_cls():
-    # 造一个二分类数据集
-    X, y = make_classification(
-        n_samples=600,
-        n_features=8,
-        n_informative=4,
-        n_redundant=2,
-        random_state=42,
-    )
 
-    splits = np.array_split(np.arange(X.shape[0]), 3)
-    clients = [(X[idx], y[idx]) for idx in splits]
-    weights = np.array([len(idx) for idx in splits], dtype=float)
+def demo_pima_cls():
+    data_dir = os.path.join(os.path.dirname(__file__), "data")
+    clients, weights = load_pima_clients(data_dir, num_clients=5)
 
     fed_iife = FedIIFE(
         clients_data=clients,
@@ -502,49 +509,16 @@ def demo_cls():
     )
     fed_iife.fit()
 
-    print("\n[CLS] Final best federated score (F1):", fed_iife.best_score_)
+    print("\n[PIMA CLS] Final best federated score (F1):", fed_iife.best_score_)
     print("Operation sequence:")
     for k, op in enumerate(fed_iife.operation_list, 1):
         print(f"  step {k}: new_feat = {op.unary_op}({op.binary_op}(F{op.i}, F{op.j}))")
 
 
-# ---------- 一个小 demo：回归任务用 1-RAE ----------
-
-def demo_reg():
-    X, y = make_regression(
-        n_samples=600,
-        n_features=8,
-        n_informative=5,
-        noise=0.5,
-        random_state=42,
-    )
-
-    splits = np.array_split(np.arange(X.shape[0]), 3)
-    clients = [(X[idx], y[idx]) for idx in splits]
-    weights = np.array([len(idx) for idx in splits], dtype=float)
-
-    fed_iife = FedIIFE(
-        clients_data=clients,
-        task_type='reg',
-        max_rounds=3,
-        top_k_pairs=5,
-        patience=2,
-        weights=weights,
-    )
-    fed_iife.fit()
-
-    print("\n[REG] Final best federated score (1-RAE):", fed_iife.best_score_)
-    print("Operation sequence:")
-    for k, op in enumerate(fed_iife.operation_list, 1):
-        print(f"  step {k}: new_feat = {op.unary_op}({op.binary_op}(F{op.i}, F{op.j}))")
 
 
-###################################################
-# 6. 读取 pima_indian 数据，并跑联邦 IIFE
-###################################################
 num_clients = 4
-
-def load_pima_clients(data_dir: str, num_clients: int = num_clients):
+def load_openml_586_clients(data_dir: str, num_clients: int = num_clients):
     """
     从 data/ 目录读取 pima_indian_1.hdf ... pima_indian_5.hdf，
     每个文件一个 client，最后一列为标签。
@@ -558,11 +532,9 @@ def load_pima_clients(data_dir: str, num_clients: int = num_clients):
         clients.append((X, y))
     weights = np.array([len(y) for (_, y) in clients], dtype=float)
     return clients, weights
-
-
-def demo_pima_cls():
+def demo_586_reg():
     data_dir = os.path.join(os.path.dirname(__file__), "data")
-    clients, weights = load_pima_clients(data_dir, num_clients=num_clients)
+    clients, weights = load_openml_586_clients(data_dir, num_clients=num_clients)
 
     fed_iife = FedIIFE(
         clients_data=clients,
@@ -581,6 +553,4 @@ def demo_pima_cls():
 
 
 if __name__ == "__main__":
-    #demo_reg()
-    #demo_cls()
-    demo_pima_cls()
+    demo_586_reg()
