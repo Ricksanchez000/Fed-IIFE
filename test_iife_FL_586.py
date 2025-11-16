@@ -542,7 +542,7 @@ def demo_reg():
 ###################################################
 # 6. 读取 pima_indian 数据，并跑联邦 IIFE
 ###################################################
-def load_pima_clients(data_dir: str, num_clients: int = 5):
+def load_pima_clients(data_dir: str, num_clients: int = 4):
     """
     从 data/ 目录读取 pima_indian_1.hdf ... pima_indian_5.hdf，
     每个文件一个 client，最后一列为标签。
