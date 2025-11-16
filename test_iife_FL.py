@@ -1,5 +1,6 @@
 #test_iife_FL.py
-
+import warnings
+warnings.filterwarnings('ignore')
 import numpy as np
 from itertools import combinations
 from dataclasses import dataclass
