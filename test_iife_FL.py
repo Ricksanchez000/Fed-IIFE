@@ -10,6 +10,16 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import f1_score
 from sklearn.model_selection import StratifiedKFold
 from sklearn.feature_selection import mutual_info_classif
+import pandas as pd
+from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+from sklearn.metrics import (
+    accuracy_score, precision_score, recall_score,
+    mean_absolute_error, mean_squared_error,
+    average_precision_score, roc_auc_score,
+)
+from sklearn.model_selection import KFold
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.datasets import make_classification, make_regression
 
 # ----------- 基本类型 -----------
 
@@ -477,3 +487,4 @@ def demo_reg():
 
 if __name__ == "__main__":
     demo_reg()
+    demo_cls()
