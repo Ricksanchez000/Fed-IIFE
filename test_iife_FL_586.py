@@ -566,7 +566,7 @@ def demo_pima_cls():
 
     fed_iife = FedIIFE(
         clients_data=clients,
-        task_type='cls',
+        task_type='reg',
         max_rounds=3,
         top_k_pairs=5,
         patience=2,
