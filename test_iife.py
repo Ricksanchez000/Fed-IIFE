@@ -1,3 +1,5 @@
+#test_iife.py
+
 def warn(*args, **kwargs):
     pass
 import warnings

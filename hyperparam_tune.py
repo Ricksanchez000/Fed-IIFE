@@ -1,3 +1,6 @@
+# hyperparam_tune.py
+# CV调参，但是我的邦联学习应该不需要调参
+
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import RandomizedSearchCV
 from scipy.stats import uniform, loguniform, randint
