@@ -38,9 +38,28 @@ from scipy.special import expit
 #定义算子表
 def cube(x):
     return x ** 3
+
+EPS = 1e-6
+
+def safe_sqrt(x):
+    # 把负数裁成 0，再开方
+    return np.sqrt(np.clip(x, 0.0, None))
+
+def safe_log(x):
+    # 对 |x| 加一个很小的偏移，再 log；避免 log(0) 和 log(负数)
+    return np.log(np.abs(x) + EPS)
+
+def safe_reciprocal(x):
+    # 避免除 0：把特别小的数抬到 ±EPS
+    x = x.copy()
+    mask = np.abs(x) < EPS
+    x[mask] = EPS * np.sign(x[mask] + 1e-12)
+    return 1.0 / x
+
 def justify_operation_type(o):
     if o == 'sqrt':
-        o = np.sqrt
+        #o = np.sqrt
+        o = safe_sqrt
     elif o == 'square':
         o = np.square
     elif o == 'sin':
@@ -50,7 +69,8 @@ def justify_operation_type(o):
     elif o == 'tanh':
         o = np.tanh
     elif o == 'reciprocal':
-        o = np.reciprocal
+        #o = np.reciprocal
+        o = safe_reciprocal
     elif o == '+':
         o = np.add
     elif o == '-':
@@ -72,7 +92,8 @@ def justify_operation_type(o):
     elif o == 'sigmoid':
         o = expit
     elif o == 'log':
-        o = np.log
+        #o = np.log
+        o = safe_log
     else:
         raise ValueError(f'Unknown op {o}')
     return o
