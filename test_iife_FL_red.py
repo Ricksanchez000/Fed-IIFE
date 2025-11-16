@@ -295,6 +295,56 @@ def interaction_mi(fi, fj, y, task_type='cls', n_neighbors=3, random_state=0):
     return float(I_pair_y - I_fi_y - I_fj_y)
 
 
+from knncmi import cmi as knn_cmi
+import pandas as pd
+
+def interaction_ii_knn(fi, fj, y, k=4, discrete_dist=1, minzero=1):
+    """
+    用 knncmi 的 kNN 估计器计算论文里的交互信息：
+        τ_ij = I(Fi; Fj | Y) - I(Fi; Fj)
+
+    参数：
+        fi, fj: 一维 np.ndarray，形状 (n,)
+        y     : 一维 np.ndarray，形状 (n,)
+        k     : k-NN 的 k
+        discrete_dist, minzero: 直接透传给 knncmi.cmi
+
+    返回：
+        float 标量 τ_ij
+    """
+    # 组一个 DataFrame，方便按列名调用 knn_cmi
+    df = pd.DataFrame({
+        "fi": fi,
+        "fj": fj,
+        "y":  y,
+    })
+
+    # I(Fi; Fj | Y)
+    I_cond = knn_cmi(
+        x=["fi"],
+        y=["fj"],
+        z=["y"],
+        k=k,
+        data=df,
+        discrete_dist=discrete_dist,
+        minzero=minzero,
+    )
+
+    # I(Fi; Fj)
+    I_marg = knn_cmi(
+        x=["fi"],
+        y=["fj"],
+        z=[],          # 没有条件变量 → 退化成普通 MI
+        k=k,
+        data=df,
+        discrete_dist=discrete_dist,
+        minzero=minzero,
+    )
+
+    return float(I_cond - I_marg)
+
+
+
 def compute_local_tau(
     X_c: np.ndarray,
     y_c: np.ndarray,
@@ -308,7 +358,8 @@ def compute_local_tau(
     for (i, j) in pairs:
         fi = X_c[:, i]
         fj = X_c[:, j]
-        tau = interaction_mi(fi, fj, y_c, task_type=task_type)
+        #tau = interaction_mi(fi, fj, y_c, task_type=task_type)
+        tau = interaction_ii_knn(fi, fj, y_c, k=4)
         stats[(i, j)] = tau
     return stats
 
@@ -899,4 +950,4 @@ def demo_wine_red_cls():
     print(f"  Std  F1      : {std_f1:.6f}")
 
 if __name__ == "__main__":
-    demo_pima_cls()
+    demo_wine_red_cls()
