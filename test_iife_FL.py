@@ -26,6 +26,14 @@ from sklearn.datasets import make_classification, make_regression
 
 Pair = Tuple[int, int]
 
+from dataclasses import dataclass
+
+@dataclass
+class Operation:
+    binary_op: str   # '+', '-', '*', '/'
+    unary_op: str    # 'sqrt', 'stand_scaler', 'log', ...
+    i: int           # feature index i
+    j: int           # feature index j
 
 
 import numpy as np
