@@ -259,7 +259,7 @@ def compute_local_tau(
     for (i, j) in pairs:
         fi = X_c[:, i]
         fj = X_c[:, j]
-        tau = interaction_mi(fi, fj, y_c, task_type='cls')
+        tau = interaction_mi(fi, fj, y_c, task_type=task_type)
         stats[(i, j)] = tau
     return stats
 
