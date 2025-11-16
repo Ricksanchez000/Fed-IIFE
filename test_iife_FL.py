@@ -199,29 +199,51 @@ def fed_eval_task(
 # ----------- 交互信息（本地） + Fed-II 聚合 -----------
 
 Pair = Tuple[int, int]
-def interaction_mi(fi, fj, y, n_neighbors=3, random_state=0):
+def interaction_mi(fi, fj, y, task_type='cls', n_neighbors=3, random_state=0):
+    """
+    计算交互信息: I(fi; fj; y) = I(fi,fj; y) - I(fi; y) - I(fj; y)
+    
+    Args:
+        task_type: 'cls' 用 mutual_info_classif, 'reg' 用 mutual_info_regression
+    """
+    from sklearn.feature_selection import mutual_info_regression
+    
+    # 根据任务选择互信息函数
+    if task_type == 'cls':
+        mi_func = mutual_info_classif
+    elif task_type == 'reg':
+        mi_func = mutual_info_regression
+    else:
+        raise ValueError(f"Unknown task_type: {task_type}")
+    
     X_pair = np.column_stack([fi, fj])
-    mi_pair = mutual_info_classif(
+    
+    # I(fi,fj; y)
+    mi_pair = mi_func(
         X_pair, y,
         discrete_features="auto",
         n_neighbors=n_neighbors,
         random_state=random_state
     )
-    I_pair_y = float(mi_pair.sum())  # I(fi;y) + I(fj;y)，近似"联合相关度"
-    I_fi_y = mutual_info_classif(
+    I_pair_y = float(mi_pair.sum())
+    
+    # I(fi; y)
+    I_fi_y = mi_func(
         fi.reshape(-1, 1), y,
         discrete_features="auto",
         n_neighbors=n_neighbors,
         random_state=random_state
     )[0]
-    I_fj_y = mutual_info_classif(
+    
+    # I(fj; y)
+    I_fj_y = mi_func(
         fj.reshape(-1, 1), y,
         discrete_features="auto",
         n_neighbors=n_neighbors,
         random_state=random_state
     )[0]
+    
     return float(I_pair_y - I_fi_y - I_fj_y)
-
 
 
 def compute_local_tau(
