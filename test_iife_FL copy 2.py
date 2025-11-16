@@ -226,6 +226,22 @@ def sanitize_array(X, max_abs=1e6):
     return X
 
 
+def apply_operation_sequence(X: np.ndarray, operation_list: List[Operation]) -> np.ndarray:
+    """
+    给定原始特征 X 和一串 FedIIFE 的 Operation，
+    在同一个特征空间上按顺序重放变换，返回扩展后的特征矩阵。
+    """
+    X_new = X.copy()
+    for op in operation_list:
+        fi = X_new[:, op.i]
+        fj = X_new[:, op.j]
+        g = apply_binary_op(op.binary_op, fi, fj)
+        new_feat = apply_unary_op(op.unary_op, g)
+        new_feat = sanitize_array(new_feat).reshape(-1, 1)
+        X_new = np.concatenate([X_new, new_feat], axis=1)
+    return X_new
+
+
 ###################################################
 
 
@@ -630,12 +646,25 @@ def load_pima_clients(data_dir: str, num_clients: int = 5):
         clients.append((X, y))
     weights = np.array([len(y) for (_, y) in clients], dtype=float)
     return clients, weights
+def load_pima_global(data_dir: str):
+    """
+    读取 data/pima_indian.hdf 作为全局完整数据集。
+    假设最后一列是标签。
+    """
+    path = os.path.join(data_dir, "pima_indian.hdf")
+    df = pd.read_hdf(path).reset_index(drop=True)
+    X = df.iloc[:, :-1].values
+    y = df.iloc[:, -1].values
+    return X, y
+
 
 
 def demo_pima_cls():
     data_dir = os.path.join(os.path.dirname(__file__), "data")
+    # 1) 加载各个 client 子集
     clients, weights = load_pima_clients(data_dir, num_clients=5)
 
+    # 2) 训练 Fed-IIFE（用联邦加权 F1 选特征池）
     fed_iife = FedIIFE(
         clients_data=clients,
         task_type='cls',
@@ -643,7 +672,7 @@ def demo_pima_cls():
         top_k_pairs=5,
         patience=2,
         weights=weights,
-        verbose=2,  # 0=静默, 1=正常, 2=详细
+        verbose=1,  # 需要详细过程再改成 2
     )
     fed_iife.fit()
 
@@ -652,13 +681,44 @@ def demo_pima_cls():
     for k, op in enumerate(fed_iife.operation_list, 1):
         print(f"  step {k}: new_feat = {op.unary_op}({op.binary_op}(F{op.i}, F{op.j}))")
 
+    # =====================================================
+    # A. 在全局完整数据上评估（pima_indian.hdf）
+    # =====================================================
+    Xg, yg = load_pima_global(data_dir)
+    # 原始全局特征 + FedIIFE 的操作序列
+    Xg_fe = apply_operation_sequence(Xg, fed_iife.operation_list)
+
+    Dg_global = pd.DataFrame(Xg_fe)
+    Dg_global['label'] = yg
+    _, _, _, f1_global = test_task_new(Dg_global, 'cls')
+    print("\n[Global full data] F1 after Fed-IIFE feature pool:", f1_global)
+
+    # =====================================================
+    # B. 在各个 client 上评估最终特征池，统计均值 / 标准差
+    # =====================================================
+    client_f1s = []
+    for cid, (Xc, yc) in enumerate(fed_iife.clients_data, 1):
+        Dc = pd.DataFrame(Xc)
+        Dc['label'] = yc
+        _, _, _, f1_c = test_task_new(Dc, 'cls')
+        client_f1s.append(f1_c)
+        print(f"  Client {cid} F1: {f1_c:.6f}")
+
+    client_f1s = np.array(client_f1s)
+    mean_f1 = client_f1s.mean()
+    std_f1  = client_f1s.std(ddof=1)  # 样本标准差
+
+    print("\n[Client stats]")
+    print("  F1 per client:", client_f1s)
+    print(f"  Mean F1      : {mean_f1:.6f}")
+    print(f"  Std  F1      : {std_f1:.6f}")
 
 
 
 num_clients = 4
-def load_openml_586_clients(data_dir: str, num_clients: int = num_clients):
+def load_openml_586_clients(data_dir: str, num_clients: int = 4):
     """
-    从 data/ 目录读取 pima_indian_1.hdf ... pima_indian_5.hdf，
+    从 data/ 目录读取 openml_586_1.hdf ... openml_586_{num_clients}.hdf，
     每个文件一个 client，最后一列为标签。
     """
     clients = []
@@ -668,28 +728,175 @@ def load_openml_586_clients(data_dir: str, num_clients: int = num_clients):
         X = df.iloc[:, :-1].values
         y = df.iloc[:, -1].values
         clients.append((X, y))
+    # 按样本数做加权
     weights = np.array([len(y) for (_, y) in clients], dtype=float)
     return clients, weights
+
+
+def load_openml_586_global(data_dir: str):
+    """
+    读取 data/openml_586.hdf 作为全局完整数据集。
+    假设最后一列是标签。
+    """
+    path = os.path.join(data_dir, "openml_586.hdf")
+    df = pd.read_hdf(path).reset_index(drop=True)
+    X = df.iloc[:, :-1].values
+    y = df.iloc[:, -1].values
+    return X, y
+
+
 def demo_586_reg():
     data_dir = os.path.join(os.path.dirname(__file__), "data")
+    num_clients = 4
+
+    # 1) 加载各个 client 子集
     clients, weights = load_openml_586_clients(data_dir, num_clients=num_clients)
 
+    # 2) 训练 Fed-IIFE（用联邦加权 (1-RAE) 选特征池）
     fed_iife = FedIIFE(
         clients_data=clients,
-        task_type='reg',
+        task_type='reg',         # 注意这里是回归
         max_rounds=3,
         top_k_pairs=5,
         patience=2,
         weights=weights,
-        verbose=2,  # 0=静默, 1=正常, 2=详细
+        verbose=1,               # 需要更详细过程设成 2
     )
     fed_iife.fit()
 
-    print("\n[PIMA CLS] Final best federated score (F1):", fed_iife.best_score_)
+    print("\n[OPENML-586 REG] Final best federated score (1-RAE):", fed_iife.best_score_)
     print("Operation sequence:")
     for k, op in enumerate(fed_iife.operation_list, 1):
         print(f"  step {k}: new_feat = {op.unary_op}({op.binary_op}(F{op.i}, F{op.j}))")
 
+    # =====================================================
+    # A. 在全局完整数据上评估（openml_586.hdf）
+    # =====================================================
+    Xg, yg = load_openml_586_global(data_dir)
+    # 原始全局特征 + FedIIFE 的操作序列
+    Xg_fe = apply_operation_sequence(Xg, fed_iife.operation_list)
+
+    Dg_global = pd.DataFrame(Xg_fe)
+    Dg_global['label'] = yg
+    mae_g, mse_g, rae_g = test_task_new(Dg_global, 'reg')
+    score_global = 1.0 - rae_g
+
+    print("\n[Global full data] metrics after Fed-IIFE feature pool:")
+    print(f"  MAE : {mae_g:.6f}")
+    print(f"  MSE : {mse_g:.6f}")
+    print(f"  RAE : {rae_g:.66f}")
+    print(f"  1-RAE (score): {score_global:.6f}")
+
+    # =====================================================
+    # B. 在各个 client 上评估最终特征池，统计均值 / 标准差（按 1-RAE）
+    # =====================================================
+    client_scores = []
+    for cid, (Xc, yc) in enumerate(fed_iife.clients_data, 1):
+        Dc = pd.DataFrame(Xc)
+        Dc['label'] = yc
+        mae_c, mse_c, rae_c = test_task_new(Dc, 'reg')
+        score_c = 1.0 - rae_c
+        client_scores.append(score_c)
+        print(f"  Client {cid} -> MAE={mae_c:.6f}, MSE={mse_c:.6f}, RAE={rae_c:.6f}, 1-RAE={score_c:.6f}")
+
+    client_scores = np.array(client_scores)
+    mean_score = client_scores.mean()
+    std_score  = client_scores.std(ddof=1)  # 样本标准差
+
+    print("\n[Client stats] (1-RAE as score)")
+    print("  Scores per client:", client_scores)
+    print(f"  Mean 1-RAE      : {mean_score:.6f}")
+    print(f"  Std  1-RAE      : {std_score:.6f}")
+
+
+
+
+
+###################################################
+#  Wine Red a0p5: 联邦分类版本
+###################################################
+
+def load_wine_red_clients(data_dir: str, num_clients: int = 4):
+    """
+    从 data/ 目录读取 wine_red_a0p5_1.hdf ... wine_red_a0p5_{num_clients}.hdf，
+    每个文件一个 client，最后一列为标签。
+    """
+    clients = []
+    for cid in range(1, num_clients + 1):
+        path = os.path.join(data_dir, f"wine_red_a0p5_{cid}.hdf")
+        df = pd.read_hdf(path).reset_index(drop=True)
+        X = df.iloc[:, :-1].values
+        y = df.iloc[:, -1].values
+        clients.append((X, y))
+    # 按样本数做加权
+    weights = np.array([len(y) for (_, y) in clients], dtype=float)
+    return clients, weights
+
+def load_wine_red_global(data_dir: str):
+    """
+    读取 data/wine_red_a0p5.hdf 作为全局完整数据集。
+    假设最后一列是标签。
+    """
+    path = os.path.join(data_dir, "wine_red_a0p5.hdf")
+    df = pd.read_hdf(path).reset_index(drop=True)
+    X = df.iloc[:, :-1].values
+    y = df.iloc[:, -1].values
+    return X, y
+
+def demo_wine_red_cls():
+    data_dir = os.path.join(os.path.dirname(__file__), "data")
+    num_clients = 4
+
+    # 1) 加载各个 client 子集
+    clients, weights = load_wine_red_clients(data_dir, num_clients=num_clients)
+
+    # 2) 训练 Fed-IIFE（用联邦加权 F1 选特征池）
+    fed_iife = FedIIFE(
+        clients_data=clients,
+        task_type='cls',        # wine_red 是分类
+        max_rounds=3,
+        top_k_pairs=5,
+        patience=2,
+        weights=weights,
+        verbose=1,              # 想看更详细日志改成 2
+    )
+    fed_iife.fit()
+
+    print("\n[WINE RED CLS] Final best federated score (F1):", fed_iife.best_score_)
+    print("Operation sequence:")
+    for k, op in enumerate(fed_iife.operation_list, 1):
+        print(f"  step {k}: new_feat = {op.unary_op}({op.binary_op}(F{op.i}, F{op.j}))")
+
+    # =====================================================
+    # A. 在全局完整数据上评估（wine_red_a0p5.hdf）
+    # =====================================================
+    Xg, yg = load_wine_red_global(data_dir)
+    Xg_fe = apply_operation_sequence(Xg, fed_iife.operation_list)
+
+    Dg_global = pd.DataFrame(Xg_fe)
+    Dg_global['label'] = yg
+    _, _, _, f1_global = test_task_new(Dg_global, 'cls')
+    print("\n[Global full data] F1 after Fed-IIFE feature pool:", f1_global)
+
+    # =====================================================
+    # B. 在各个 client 上评估最终特征池，统计均值 / 标准差（F1）
+    # =====================================================
+    client_f1s = []
+    for cid, (Xc, yc) in enumerate(fed_iife.clients_data, 1):
+        Dc = pd.DataFrame(Xc)
+        Dc['label'] = yc
+        _, _, _, f1_c = test_task_new(Dc, 'cls')
+        client_f1s.append(f1_c)
+        print(f"  Client {cid} F1: {f1_c:.6f}")
+
+    client_f1s = np.array(client_f1s)
+    mean_f1 = client_f1s.mean()
+    std_f1  = client_f1s.std(ddof=1)  # 样本标准差
+
+    print("\n[Client stats] (F1)")
+    print("  F1 per client:", client_f1s)
+    print(f"  Mean F1      : {mean_f1:.6f}")
+    print(f"  Std  F1      : {std_f1:.6f}")
 
 if __name__ == "__main__":
-    demo_586_reg()
+    demo_pima_cls()
