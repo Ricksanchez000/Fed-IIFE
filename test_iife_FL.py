@@ -363,6 +363,8 @@ class Operation:
 
 # ---------- Fed-IIFE 主循环：用 F1 / 1-RAE 做目标 ----------
 
+# ---------- Fed-IIFE 主循环：用 F1 / 1-RAE 做目标 ----------
+
 class FedIIFE:
     def __init__(
         self,
@@ -374,9 +376,8 @@ class FedIIFE:
         weights: np.ndarray = None,
         binary_ops: List[str] = None,
         unary_ops: List[str] = None,
+        verbose: int = 1,  # 新增：0=静默, 1=正常, 2=详细
     ):
-        #self.clients_data = [(X.copy(), y.copy()) for (X, y) in clients_data]
-
         self.clients_data = [(sanitize_array(X.copy()), y.copy())
                             for (X, y) in clients_data]
 
@@ -385,6 +386,7 @@ class FedIIFE:
         self.top_k_pairs = top_k_pairs
         self.patience = patience
         self.weights = weights
+        self.verbose = verbose
 
         self.binary_ops = binary_ops or ['+', '-', '*', '/']
         self.unary_ops = unary_ops or [
@@ -405,59 +407,167 @@ class FedIIFE:
         return list(combinations(idx, 2))
 
     def fit(self):
+        import time
+        
+        # 初始信息
+        n_clients = len(self.clients_data)
+        n_features = self.clients_data[0][0].shape[1]
+        total_samples = sum(len(y) for _, y in self.clients_data)
+        
+        if self.verbose >= 1:
+            print("=" * 70)
+            print(f"Fed-IIFE 初始化")
+            print("=" * 70)
+            print(f"客户端数量: {n_clients}")
+            print(f"初始特征数: {n_features}")
+            print(f"总样本数: {total_samples}")
+            print(f"任务类型: {self.task_type}")
+            print(f"最大轮数: {self.max_rounds}")
+            print(f"Top-K pairs: {self.top_k_pairs}")
+            print(f"Patience: {self.patience}")
+            print(f"二元算子: {self.binary_ops}")
+            print(f"一元算子数量: {len(self.unary_ops)}")
+            print("=" * 70)
+        
+        # 初始评估
+        if self.verbose >= 1:
+            print("\n[初始评估] 计算基线性能...")
+        
+        start_time = time.time()
         best_score = fed_eval_task(self.clients_data, self.task_type, self.weights)
+        eval_time = time.time() - start_time
+        
         self.score_history.append(best_score)
         no_improve = 0
 
-        for rnd in range(self.max_rounds):
-            print(f"[Round {rnd}] current best federated score = {best_score:.4f}")
+        if self.verbose >= 1:
+            print(f"[初始评估] 基线得分: {best_score:.6f} (耗时: {eval_time:.2f}s)")
+            print()
 
-            # 1) Fed-II：当前特征对的全局交互信息
+        for rnd in range(self.max_rounds):
+            round_start = time.time()
+            
+            if self.verbose >= 1:
+                print("=" * 70)
+                print(f"Round {rnd + 1}/{self.max_rounds}")
+                print("=" * 70)
+                print(f"当前最佳得分: {best_score:.6f}")
+                print(f"当前特征数: {self.clients_data[0][0].shape[1]}")
+
+            # 1) Fed-II：计算交互信息
+            if self.verbose >= 1:
+                print(f"\n[步骤1] 计算特征对交互信息...")
+            
+            mi_start = time.time()
             pairs = self._all_pairs()
-            I_global = fed_ii(self.clients_data, pairs, self.weights,task_type=self.task_type)
+            
+            if self.verbose >= 2:
+                print(f"  - 总特征对数: {len(pairs)}")
+            
+            I_global = fed_ii(self.clients_data, pairs, self.weights, task_type=self.task_type)
             sorted_pairs = sorted(I_global.items(), key=lambda kv: kv[1], reverse=True)
             top_pairs = [p for (p, _) in sorted_pairs[: self.top_k_pairs]]
+            mi_time = time.time() - mi_start
+            
+            if self.verbose >= 1:
+                print(f"  - 耗时: {mi_time:.2f}s")
+                print(f"  - Top-{self.top_k_pairs} 特征对交互信息:")
+                for idx, (pair, score) in enumerate(sorted_pairs[:5], 1):
+                    print(f"    {idx}. F{pair[0]} & F{pair[1]}: {score:.6f}")
+                if len(sorted_pairs) > 5:
+                    print(f"    ...")
 
-            # 2) 在 Top-K 对上搜索 (binary_op, unary_op)
+            # 2) 搜索最佳操作组合
+            if self.verbose >= 1:
+                print(f"\n[步骤2] 搜索最佳特征变换...")
+                total_combinations = len(top_pairs) * len(self.binary_ops) * len(self.unary_ops)
+                print(f"  - 候选组合数: {total_combinations}")
+            
+            search_start = time.time()
             cand_best_score = -np.inf
             cand_best_op = None
-
-            for (i, j) in top_pairs:
+            
+            eval_count = 0
+            for pair_idx, (i, j) in enumerate(top_pairs):
+                if self.verbose >= 2:
+                    print(f"\n  特征对 {pair_idx + 1}/{len(top_pairs)}: F{i} & F{j}")
+                
                 for b in self.binary_ops:
                     for u in self.unary_ops:
-                        tmp_clients = []
-                        for (X_c, y_c) in self.clients_data:
-                            fi = X_c[:, i]
-                            fj = X_c[:, j]
-                            g = apply_binary_op(b, fi, fj)
-                            new_feat = apply_unary_op(u, g).reshape(-1, 1)
-                            new_feat = sanitize_array(new_feat).reshape(-1, 1)
-                            X_tmp = np.concatenate([X_c, new_feat], axis=1)
-                            tmp_clients.append((X_tmp, y_c))
+                        eval_count += 1
+                        
+                        try:
+                            tmp_clients = []
+                            for (X_c, y_c) in self.clients_data:
+                                fi = X_c[:, i]
+                                fj = X_c[:, j]
+                                g = apply_binary_op(b, fi, fj)
+                                new_feat = apply_unary_op(u, g).reshape(-1, 1)
+                                new_feat = sanitize_array(new_feat).reshape(-1, 1)
+                                X_tmp = np.concatenate([X_c, new_feat], axis=1)
+                                tmp_clients.append((X_tmp, y_c))
 
-                        s = fed_eval_task(tmp_clients, self.task_type, self.weights)
-                        if s > cand_best_score:
-                            cand_best_score = s
-                            cand_best_op = Operation(b, u, i, j)
+                            s = fed_eval_task(tmp_clients, self.task_type, self.weights)
+                            
+                            if s > cand_best_score:
+                                cand_best_score = s
+                                cand_best_op = Operation(b, u, i, j)
+                                
+                                if self.verbose >= 2:
+                                    print(f"    ✓ 新最佳: {u}({b}(F{i}, F{j})) = {s:.6f}")
+                        
+                        except Exception as e:
+                            if self.verbose >= 2:
+                                print(f"    ✗ 错误: {u}({b}(F{i}, F{j})) - {str(e)[:50]}")
+                            continue
+                        
+                        # 进度显示
+                        if self.verbose >= 1 and eval_count % 50 == 0:
+                            print(f"    进度: {eval_count}/{total_combinations} ({100*eval_count/total_combinations:.1f}%)")
+            
+            search_time = time.time() - search_start
+            
+            if self.verbose >= 1:
+                print(f"\n  - 评估完成: {eval_count}/{total_combinations} 个组合")
+                print(f"  - 耗时: {search_time:.2f}s")
+                print(f"  - 本轮最佳得分: {cand_best_score:.6f}")
+                if cand_best_op:
+                    print(f"  - 最佳操作: {cand_best_op.unary_op}({cand_best_op.binary_op}(F{cand_best_op.i}, F{cand_best_op.j}))")
 
-            print(f"  best candidate score this round = {cand_best_score:.4f}")
-
-            # 早停逻辑
+            # 3) 早停判断
+            improvement = cand_best_score - best_score
+            
+            if self.verbose >= 1:
+                print(f"\n[步骤3] 早停检查")
+                print(f"  - 性能提升: {improvement:.6f}")
+            
             if cand_best_score <= best_score + 1e-8:
                 no_improve += 1
-                print(f"  no improvement, patience {no_improve}/{self.patience}")
+                if self.verbose >= 1:
+                    print(f"  - 无提升，patience计数: {no_improve}/{self.patience}")
+                
                 if no_improve >= self.patience:
-                    print("Early stopping.")
+                    if self.verbose >= 1:
+                        print(f"  - 达到patience上限，早停！")
                     break
                 else:
+                    round_time = time.time() - round_start
+                    if self.verbose >= 1:
+                        print(f"\n本轮耗时: {round_time:.2f}s")
                     continue
             else:
                 no_improve = 0
+                if self.verbose >= 1:
+                    print(f"  - 性能提升，继续训练")
 
-            # 3) commit 最佳操作：真正加到所有 client 的特征池
+            # 4) 提交最佳操作
+            if self.verbose >= 1:
+                print(f"\n[步骤4] 应用最佳特征变换")
+            
             op = cand_best_op
             self.operation_list.append(op)
 
+            commit_start = time.time()
             new_clients = []
             for (X_c, y_c) in self.clients_data:
                 fi = X_c[:, op.i]
@@ -468,14 +578,41 @@ class FedIIFE:
                 X_new = np.concatenate([X_c, new_feat], axis=1)
                 new_clients.append((X_new, y_c))
             self.clients_data = new_clients
+            commit_time = time.time() - commit_start
 
             best_score = cand_best_score
             self.score_history.append(best_score)
+            
+            round_time = time.time() - round_start
+            
+            if self.verbose >= 1:
+                print(f"  - 特征添加完成，新特征数: {self.clients_data[0][0].shape[1]}")
+                print(f"  - 应用耗时: {commit_time:.2f}s")
+                print(f"\n本轮总耗时: {round_time:.2f}s")
+                print(f"平均每个组合评估耗时: {search_time/eval_count:.4f}s")
+
+        # 最终总结
+        total_time = time.time() - start_time
+        
+        if self.verbose >= 1:
+            print("\n" + "=" * 70)
+            print("Fed-IIFE 训练完成")
+            print("=" * 70)
+            print(f"总轮数: {len(self.score_history) - 1}")
+            print(f"最终特征数: {self.clients_data[0][0].shape[1]}")
+            print(f"初始得分: {self.score_history[0]:.6f}")
+            print(f"最终得分: {best_score:.6f}")
+            print(f"性能提升: {best_score - self.score_history[0]:.6f}")
+            print(f"总耗时: {total_time:.2f}s")
+            print(f"\n特征变换序列:")
+            for k, op in enumerate(self.operation_list, 1):
+                print(f"  {k}. {op.unary_op}({op.binary_op}(F{op.i}, F{op.j}))")
+            print("=" * 70)
 
         self.best_score_ = best_score
         return self
-
-
+    
+    
 ###################################################
 # 6. 读取 pima_indian 数据，并跑联邦 IIFE
 ###################################################
@@ -506,6 +643,7 @@ def demo_pima_cls():
         top_k_pairs=5,
         patience=2,
         weights=weights,
+        verbose=2,  # 0=静默, 1=正常, 2=详细
     )
     fed_iife.fit()
 
@@ -543,6 +681,7 @@ def demo_586_reg():
         top_k_pairs=5,
         patience=2,
         weights=weights,
+        verbose=2,  # 0=静默, 1=正常, 2=详细
     )
     fed_iife.fit()
 
