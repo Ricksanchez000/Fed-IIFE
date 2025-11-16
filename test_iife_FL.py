@@ -4,7 +4,7 @@ import numpy as np
 from itertools import combinations
 from dataclasses import dataclass
 from typing import List, Tuple, Callable, Dict
-
+import os
 from sklearn.datasets import make_classification
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import f1_score
