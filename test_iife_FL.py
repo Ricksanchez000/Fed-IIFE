@@ -249,7 +249,8 @@ def interaction_mi(fi, fj, y, task_type='cls', n_neighbors=3, random_state=0):
 def compute_local_tau(
     X_c: np.ndarray,
     y_c: np.ndarray,
-    pairs: List[Pair]
+    pairs: List[Pair],
+    task_type='cls'
 ) -> Dict[Pair, float]:
     """
     在单个 client 上，对给定的特征对列表 pairs，计算 τ_ij^c。
@@ -258,14 +259,15 @@ def compute_local_tau(
     for (i, j) in pairs:
         fi = X_c[:, i]
         fj = X_c[:, j]
-        tau = interaction_mi(fi, fj, y_c)
+        tau = interaction_mi(fi, fj, y_c, task_type='cls')
         stats[(i, j)] = tau
     return stats
 
 def fed_ii(
     clients_data: List[Tuple[np.ndarray, np.ndarray]],
     pairs: List[Pair],
-    weights: np.ndarray = None
+    weights: np.ndarray = None,
+    task_type='cls'
 ) -> Dict[Pair, float]:
     """
     Fed-II：对所有 client 的本地 τ_ij^c 做（加权）平均，得到全局 τ_ij。
@@ -280,7 +282,7 @@ def fed_ii(
 
     # 各 client 本地计算 τ_ij^c
     local_stats = [
-        compute_local_tau(X_c, y_c, pairs)
+        compute_local_tau(X_c, y_c, pairs, task_type='cls')
         for (X_c, y_c) in clients_data
     ]
 
@@ -375,7 +377,7 @@ class FedIIFE:
 
             # 1) Fed-II：当前特征对的全局交互信息
             pairs = self._all_pairs()
-            I_global = fed_ii(self.clients_data, pairs, self.weights)
+            I_global = fed_ii(self.clients_data, pairs, self.weights,task_type=self.task_type)
             sorted_pairs = sorted(I_global.items(), key=lambda kv: kv[1], reverse=True)
             top_pairs = [p for (p, _) in sorted_pairs[: self.top_k_pairs]]
 
