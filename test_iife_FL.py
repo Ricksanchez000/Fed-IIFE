@@ -193,6 +193,17 @@ def fed_eval_task(
 
     local_scores = np.asarray(local_scores, dtype=float)
     return float(np.sum(weights * local_scores))
+
+def sanitize_array(X, max_abs=1e6):
+    """
+    把 NaN / Inf / 极端大值裁剪到 [-max_abs, max_abs] 区间内，
+    避免 RF / MI 计算时炸掉。
+    """
+    X = np.nan_to_num(X, nan=0.0, posinf=max_abs, neginf=-max_abs)
+    X = np.clip(X, -max_abs, max_abs)
+    return X
+
+
 ###################################################
 
 
@@ -342,7 +353,11 @@ class FedIIFE:
         binary_ops: List[str] = None,
         unary_ops: List[str] = None,
     ):
-        self.clients_data = [(X.copy(), y.copy()) for (X, y) in clients_data]
+        #self.clients_data = [(X.copy(), y.copy()) for (X, y) in clients_data]
+
+        self.clients_data = [(sanitize_array(X.copy()), y.copy())
+                            for (X, y) in clients_data]
+
         self.task_type = task_type
         self.max_rounds = max_rounds
         self.top_k_pairs = top_k_pairs
@@ -394,6 +409,7 @@ class FedIIFE:
                             fj = X_c[:, j]
                             g = apply_binary_op(b, fi, fj)
                             new_feat = apply_unary_op(u, g).reshape(-1, 1)
+                            new_feat = sanitize_array(new_feat).reshape(-1, 1)
                             X_tmp = np.concatenate([X_c, new_feat], axis=1)
                             tmp_clients.append((X_tmp, y_c))
 
@@ -426,6 +442,7 @@ class FedIIFE:
                 fj = X_c[:, op.j]
                 g = apply_binary_op(op.binary_op, fi, fj)
                 new_feat = apply_unary_op(op.unary_op, g).reshape(-1, 1)
+                new_feat = sanitize_array(new_feat).reshape(-1, 1)
                 X_new = np.concatenate([X_c, new_feat], axis=1)
                 new_clients.append((X_new, y_c))
             self.clients_data = new_clients
