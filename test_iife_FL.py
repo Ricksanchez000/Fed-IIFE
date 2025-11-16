@@ -501,6 +501,46 @@ def demo_reg():
         print(f"  step {k}: new_feat = {op.unary_op}({op.binary_op}(F{op.i}, F{op.j}))")
 
 
+###################################################
+# 6. 读取 pima_indian 数据，并跑联邦 IIFE
+###################################################
+def load_pima_clients(data_dir: str, num_clients: int = 5):
+    """
+    从 data/ 目录读取 pima_indian_1.hdf ... pima_indian_5.hdf，
+    每个文件一个 client，最后一列为标签。
+    """
+    clients = []
+    for cid in range(1, num_clients + 1):
+        path = os.path.join(data_dir, f"pima_indian_{cid}.hdf")
+        df = pd.read_hdf(path).reset_index(drop=True)
+        X = df.iloc[:, :-1].values
+        y = df.iloc[:, -1].values
+        clients.append((X, y))
+    weights = np.array([len(y) for (_, y) in clients], dtype=float)
+    return clients, weights
+
+
+def demo_pima_cls():
+    data_dir = os.path.join(os.path.dirname(__file__), "data")
+    clients, weights = load_pima_clients(data_dir, num_clients=5)
+
+    fed_iife = FedIIFE(
+        clients_data=clients,
+        task_type='cls',
+        max_rounds=3,
+        top_k_pairs=5,
+        patience=2,
+        weights=weights,
+    )
+    fed_iife.fit()
+
+    print("\n[PIMA CLS] Final best federated score (F1):", fed_iife.best_score_)
+    print("Operation sequence:")
+    for k, op in enumerate(fed_iife.operation_list, 1):
+        print(f"  step {k}: new_feat = {op.unary_op}({op.binary_op}(F{op.i}, F{op.j}))")
+
+
 if __name__ == "__main__":
-    demo_reg()
-    demo_cls()
+    #demo_reg()
+    #demo_cls()
+    demo_pima_cls()
