@@ -815,7 +815,7 @@ def demo_586_reg():
     fed_iife = FedIIFE(
         clients_data=clients,
         task_type='reg',         # 注意这里是回归
-        max_rounds=3,
+        max_rounds=10,
         top_k_pairs=5,
         patience=2,
         weights=weights,

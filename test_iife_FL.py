@@ -727,7 +727,7 @@ def demo_pima_cls():
     fed_iife = FedIIFE(
         clients_data=clients,
         task_type='cls',
-        max_rounds=3,
+        max_rounds=10,
         top_k_pairs=5,
         patience=2,
         weights=weights,
@@ -913,7 +913,7 @@ def demo_wine_red_cls():
     fed_iife = FedIIFE(
         clients_data=clients,
         task_type='cls',        # wine_red 是分类
-        max_rounds=3,
+        max_rounds=5,
         top_k_pairs=5,
         patience=2,
         weights=weights,
